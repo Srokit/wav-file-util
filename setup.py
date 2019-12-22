@@ -9,5 +9,11 @@ setup(
     packages=["wav_reader"],
     extras_require={
         'dev': ['pylint']
+    },
+    entry_points={
+        'console_scripts': [
+            'wav_reader = wav_reader.__main__:main'
+        ]
     }
 )
+
