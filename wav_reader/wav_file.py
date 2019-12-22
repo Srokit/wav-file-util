@@ -50,7 +50,7 @@ class WavFileMetaData:
     BYTES_PER_SAMPLE_DEFAULT = 3 # Because that was the number I saw in one wav file
 
     @classmethod
-    def make_default_meta_data(cls):
+    def make_default(cls):
         bytes_of_audio_data = cls.NUM_SAMPLES_DEFAULT * cls.FORMAT_CHUNK_NUM_CHANNELS_EXPECTED * cls.BYTES_PER_SAMPLE_DEFAULT
         meta_data = WavFileMetaData()
         meta_data.super_chunk_id = cls.SUPER_CHUNK_ID_EXPECTED
@@ -98,14 +98,17 @@ class WavFile:
     SAMPLES_PER_BLOCK = 1000
 
     @classmethod
-    def create_new_wav_file_with_transformation(cls, src_wav_file, dest_wav_file, trans_func=None):
+    def create_new_wav_file_with_transformation(cls, src_wav_file, dest_wav_filename, trans_func=None):
         """Apply trans_func to each sample and all the channels for that sample if
         trans_func is None then the new wav file will be an exact copy.
         trans_func should accept channel_index: int and sample_value: int as paramaters
-        uses src_wav_file as file data input and dest_wav_file as the file to output to
+        uses src_wav_file as file data input and dest_wav_filename as the filename to output to.
+        A WavFile object will be returned whose filename is the dest_wav_filename and whose contents
+        have been written to disk.
         """
+        dest_wav_file = WavFile(dest_wav_filename)
         # Copy meta data obj over and write contents to disk
-        cls.copy_meta_data(src_wav_file, dest_wav_file)
+        cls._copy_meta_data(src_wav_file, dest_wav_file)
         dest_wav_file.write_meta_data_to_disk()
         write_file = open(dest_wav_file.filename, 'wb')
         # Read from source wav file on disk and write to dest wav file
@@ -128,29 +131,45 @@ class WavFile:
                 if len(data) < bytes_per_block:
                     break
         write_file.close()
+        return dest_wav_file
+
+    # Static methods to get WavFile instances
 
     @classmethod
-    def copy_meta_data(cls, src_wav_file, dest_wav_file):
-        dest_wav_file.meta_data = copy.deepcopy(src_wav_file.meta_data)
-        dest_wav_file.meta_data_bytes = src_wav_file.meta_data_bytes
+    def open_existing(cls, filename):
+        wav_file = WavFile(filename)
+        wav_file._read_meta_data_from_disk()
+        return wav_file
+
+    @classmethod
+    def open_new_default_meta_data(cls, filename):
+        wav_file = WavFile(filename)
+        wav_file.meta_data = WavFileMetaData.make_default()
+        return wav_file
 
     def __init__(self, filename):
         self.filename = filename
         self.meta_data = None
-
-    def read_meta_data_from_disk(self):
-        with open(self.filename, 'rb') as wav_file_obj:
-            # Meta data bytes is used in applying transformations as the meta data bytes are copied
-            self.meta_data_bytes = wav_file_obj.read(WavFileMetaData.NUM_BYTES_BEFORE_DATA_STARTS)
-        self.meta_data = self._parse_meta_data(self.meta_data_bytes)
-        is_meta_data_valid, err_str = self._validate_meta_data()
-        assert is_meta_data_valid, err_str
+        self.meta_data_bytes = None
 
     def write_meta_data_to_disk(self):
         with open(self.filename, 'wb') as wav_file_obj:
             wav_file_obj.write(self.meta_data_bytes)
 
     # Private helpers
+
+    @classmethod
+    def _copy_meta_data(cls, src_wav_file, dest_wav_file):
+        dest_wav_file.meta_data = copy.deepcopy(src_wav_file.meta_data)
+        dest_wav_file.meta_data_bytes = src_wav_file.meta_data_bytes
+
+    def _read_meta_data_from_disk(self):
+        with open(self.filename, 'rb') as wav_file_obj:
+            # Meta data bytes is used in applying transformations as the meta data bytes are copied
+            self.meta_data_bytes = wav_file_obj.read(WavFileMetaData.NUM_BYTES_BEFORE_DATA_STARTS)
+        self.meta_data = self._parse_meta_data(self.meta_data_bytes)
+        is_meta_data_valid, err_str = self._validate_meta_data()
+        assert is_meta_data_valid, err_str
 
     def _validate_meta_data(self):
         """Returns bool, str combo. The string is the error(s)
