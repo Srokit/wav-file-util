@@ -104,12 +104,12 @@ class WavFile:
         trans_func should accept channel_index: int and sample_value: int as paramaters
         uses src_wav_file as file data input and dest_wav_file as the file to output to
         """
+        # Copy meta data obj over and write contents to disk
+        cls.copy_meta_data(src_wav_file, dest_wav_file)
+        dest_wav_file.write_meta_data_to_disk()
         write_file = open(dest_wav_file.filename, 'wb')
-        # Copy the meta data object from source file
-        dest_wav_file.meta_data = copy.deepcopy(src_wav_file.meta_data)
-        dest_wav_file.meta_data_bytes = src_wav_file.meta_data_bytes
-        # Write the meta data to disk
-        write_file.write(dest_wav_file.meta_data_bytes)
+        # Read from source wav file on disk and write to dest wav file
+        #   in blocks so as not to lead the whole file into memory
         with open(src_wav_file.filename, 'rb') as wav_file_obj:
             wav_file_obj.seek(WavFileMetaData.NUM_BYTES_BEFORE_DATA_STARTS)
             bytes_per_block = src_wav_file._get_read_block_size()
@@ -129,10 +129,14 @@ class WavFile:
                     break
         write_file.close()
 
+    @classmethod
+    def copy_meta_data(cls, src_wav_file, dest_wav_file):
+        dest_wav_file.meta_data = copy.deepcopy(src_wav_file.meta_data)
+        dest_wav_file.meta_data_bytes = src_wav_file.meta_data_bytes
+
     def __init__(self, filename):
         self.filename = filename
         self.meta_data = None
-
 
     def read_meta_data_from_disk(self):
         with open(self.filename, 'rb') as wav_file_obj:
@@ -141,6 +145,10 @@ class WavFile:
         self.meta_data = self._parse_meta_data(self.meta_data_bytes)
         is_meta_data_valid, err_str = self._validate_meta_data()
         assert is_meta_data_valid, err_str
+
+    def write_meta_data_to_disk(self):
+        with open(self.filename, 'wb') as wav_file_obj:
+            wav_file_obj.write(self.meta_data_bytes)
 
     # Private helpers
 
