@@ -5,6 +5,7 @@
 from sys import argv
 
 from wav_reader.wav_file import WavFile
+from wav_reader.generation import SquareWaveForm
 
 
 def main():
@@ -31,3 +32,5 @@ def main():
     WavFile.create_new_wav_file_with_transformation(wav_file, "test/wav_files/out/vocal_loop_1_no_channel1.wav", remove_channel0)
     print("Created wav file: test/wav_files/out/vocal_loop_1_no_channel1.wav")
 
+    WavFile.create_new_wav_file_with_wave_form('test/wav_files/out/square_wav1.wav', SquareWaveForm(1000))
+    print("Created wav file: test/wav_files/out/square_wav1.wav")

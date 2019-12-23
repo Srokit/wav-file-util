@@ -4,6 +4,7 @@
 
 import struct
 import copy
+import math
 
 
 class WavFileMetaData:
@@ -55,10 +56,10 @@ class WavFileMetaData:
         meta_data = WavFileMetaData()
         meta_data.super_chunk_id = cls.SUPER_CHUNK_ID_EXPECTED
         # There are 8 (super_chunk_id and super_chunk_size itself) not included in super_chunk_size
-        meta_data.super_chunk_size = cls.NUM_BYTES_BEFORE_DATA - 8 + bytes_of_audio_data
+        meta_data.super_chunk_size = cls.NUM_BYTES_BEFORE_DATA_STARTS - 8 + bytes_of_audio_data
         meta_data.super_chunk_format = cls.SUPER_CHUNK_FORMAT_EXPECTED
         meta_data.format_chunk_id = cls.FORMAT_CHUNK_ID_EXPECTED
-        meta_data.format_chunk_size = cls.FORAMT_CHUNK_SIZE_EXPECTED
+        meta_data.format_chunk_size = cls.FORMAT_CHUNK_SIZE_EXPECTED
         meta_data.format_chunk_audio_format = cls.FORMAT_CHUNK_AUDIO_FORMAT_EXPECTED
         meta_data.format_chunk_num_channels = cls.FORMAT_CHUNK_NUM_CHANNELS_EXPECTED
         meta_data.format_chunk_sample_rate = cls.FORMAT_CHUNK_SAMPLE_RATE_DEFAULT
@@ -87,6 +88,21 @@ class WavFileMetaData:
         self.data_chunk_id = 0x0
         self.data_chunk_size = 0x0
 
+    def get_bytes(self):
+        bytesobj = struct.pack('>I', self.super_chunk_id)
+        bytesobj += struct.pack('<I', self.super_chunk_size)
+        bytesobj += struct.pack('>I', self.super_chunk_format)
+        bytesobj += struct.pack('>I', self.format_chunk_id)
+        bytesobj += struct.pack('<I', self.format_chunk_size)
+        bytesobj += struct.pack('<H', self.format_chunk_audio_format)
+        bytesobj += struct.pack('<H', self.format_chunk_num_channels)
+        bytesobj += struct.pack('<I', self.format_chunk_sample_rate)
+        bytesobj += struct.pack('<I', self.format_chunk_byte_rate)
+        bytesobj += struct.pack('<H', self.format_chunk_block_align)
+        bytesobj += struct.pack('<H', self.format_chunk_bits_per_sample)
+        bytesobj += struct.pack('>I', self.data_chunk_id)
+        bytesobj += struct.pack('<I', self.data_chunk_size)
+        return bytesobj
 
 class WavFile:
     """The class that represents a wav file read from dics. Also the class that
@@ -110,7 +126,7 @@ class WavFile:
         # Copy meta data obj over and write contents to disk
         cls._copy_meta_data(src_wav_file, dest_wav_file)
         dest_wav_file.write_meta_data_to_disk()
-        write_file = open(dest_wav_file.filename, 'wb')
+        write_file = open(dest_wav_file.filename, 'ab')
         # Read from source wav file on disk and write to dest wav file
         #   in blocks so as not to lead the whole file into memory
         with open(src_wav_file.filename, 'rb') as wav_file_obj:
@@ -127,11 +143,40 @@ class WavFile:
                     if trans_func is not None:
                         sample_value = trans_func(channel_index, sample_value)
                     data[sample_offset:sample_offset+bytes_per_sample] = struct.pack(struct_format_str, sample_value)[:-len(padding)]
-                    write_file.write(bytes(data[sample_offset:sample_offset+bytes_per_sample])) 
+                write_file.write(bytes(data)) 
                 if len(data) < bytes_per_block:
                     break
         write_file.close()
         return dest_wav_file
+
+    @classmethod
+    def create_new_wav_file_with_wave_form(cls, filename, wave_form):
+        wav_file = WavFile(filename)
+        wav_file.meta_data = WavFileMetaData.make_default()
+        wav_file.meta_data_bytes = wav_file.meta_data.get_bytes()
+        wav_file.write_meta_data_to_disk()
+        sample_max_value = 2 ** WavFileMetaData.BYTES_PER_SAMPLE_DEFAULT - 1
+        # Num samples in one tick of wave
+        wave_sample_period = wav_file.meta_data.format_chunk_sample_rate // wave_form.frequency
+        sample_offset_from_x_origin = 0
+        with open(wav_file.filename, 'ab') as write_file:
+            for block_index in range(0, WavFileMetaData.NUM_SAMPLES_DEFAULT, cls.SAMPLES_PER_BLOCK):
+                bytes_per_block = cls.SAMPLES_PER_BLOCK * WavFileMetaData.FORMAT_CHUNK_NUM_CHANNELS_EXPECTED * WavFileMetaData.BYTES_PER_SAMPLE_DEFAULT
+                data = b''
+                sample_index_start = block_index * cls.SAMPLES_PER_BLOCK
+                for sample_index in range(sample_index_start, min(sample_index_start + cls.SAMPLES_PER_BLOCK, WavFileMetaData.NUM_SAMPLES_DEFAULT)):
+                    x_val_for_eqn = sample_offset_from_x_origin / wave_sample_period * 2 * math.pi
+                    y_val_from_eqn = wave_form.y_from_x(x_val_for_eqn)
+                    # y val will be between [-1, 1] so divide by and add 1/2 to shift up into [0,1]
+                    sample_value = int((y_val_from_eqn / 2 + 1/2) * sample_max_value)
+                    fmt_str, padding = wav_file._get_per_sample_struct_format_str_and_padding()
+                    # Write same level to all channels
+                    for _ in range(wav_file.meta_data.format_chunk_num_channels):
+                        data += struct.pack(fmt_str, sample_value)[:-len(padding)]
+                    # cyclically move the x offset for input to wave_form.y_from_x method
+                    sample_offset_from_x_origin = (sample_offset_from_x_origin + 1) % wave_sample_period
+                write_file.write(data)
+        return wav_file
 
     # Static methods to get WavFile instances
 
