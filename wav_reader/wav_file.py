@@ -46,8 +46,9 @@ class WavFileMetaData:
 
     DATA_CHUNK_ID_EXPECTED = 0x64617461 # "data" in ascii (Big-endian)
 
-    NUM_SAMPLES_DEFAULT = 2000000 # 2 Mill TODO: Make this more appropriate
-    FORMAT_CHUNK_SAMPLE_RATE_DEFAULT = 8000 # 8 kHz TODO: Make better
+    AUDIO_DURATION_IN_SECONDS_DEFAULT = 5 # 5 seconds
+    FORMAT_CHUNK_SAMPLE_RATE_DEFAULT = 44100 # 44.1 kHz TODO: Make better
+    NUM_SAMPLES_DEFAULT = AUDIO_DURATION_IN_SECONDS_DEFAULT * FORMAT_CHUNK_SAMPLE_RATE_DEFAULT
     BYTES_PER_SAMPLE_DEFAULT = 3 # Because that was the number I saw in one wav file
 
     @classmethod
@@ -155,26 +156,24 @@ class WavFile:
         wav_file.meta_data = WavFileMetaData.make_default()
         wav_file.meta_data_bytes = wav_file.meta_data.get_bytes()
         wav_file.write_meta_data_to_disk()
-        sample_max_value = 2 ** WavFileMetaData.BYTES_PER_SAMPLE_DEFAULT - 1
+        sample_max_value = 2 ** wav_file.meta_data.format_chunk_bits_per_sample - 1
         # Num samples in one tick of wave
         wave_sample_period = wav_file.meta_data.format_chunk_sample_rate // wave_form.frequency
         sample_offset_from_x_origin = 0
         with open(wav_file.filename, 'ab') as write_file:
-            for block_index in range(0, WavFileMetaData.NUM_SAMPLES_DEFAULT, cls.SAMPLES_PER_BLOCK):
+            for block_index in range(0, math.ceil(WavFileMetaData.NUM_SAMPLES_DEFAULT / 1000)):
                 bytes_per_block = cls.SAMPLES_PER_BLOCK * WavFileMetaData.FORMAT_CHUNK_NUM_CHANNELS_EXPECTED * WavFileMetaData.BYTES_PER_SAMPLE_DEFAULT
                 data = b''
                 sample_index_start = block_index * cls.SAMPLES_PER_BLOCK
-                for sample_index in range(sample_index_start, min(sample_index_start + cls.SAMPLES_PER_BLOCK, WavFileMetaData.NUM_SAMPLES_DEFAULT)):
+                for _ in range(sample_index_start, min(sample_index_start + cls.SAMPLES_PER_BLOCK, WavFileMetaData.NUM_SAMPLES_DEFAULT)):
                     x_val_for_eqn = sample_offset_from_x_origin / wave_sample_period * 2 * math.pi
                     y_val_from_eqn = wave_form.y_from_x(x_val_for_eqn)
-                    # y val will be between [-1, 1] so divide by and add 1/2 to shift up into [0,1]
-                    sample_value = int((y_val_from_eqn / 2 + 1/2) * sample_max_value)
+                    sample_value = int(y_val_from_eqn * sample_max_value / 2)
                     fmt_str, padding = wav_file._get_per_sample_struct_format_str_and_padding()
                     # Write same level to all channels
                     for _ in range(wav_file.meta_data.format_chunk_num_channels):
                         data += struct.pack(fmt_str, sample_value)[:-len(padding)]
-                    # cyclically move the x offset for input to wave_form.y_from_x method
-                    sample_offset_from_x_origin = (sample_offset_from_x_origin + 1) % wave_sample_period
+                    sample_offset_from_x_origin += 1
                 write_file.write(data)
         return wav_file
 
