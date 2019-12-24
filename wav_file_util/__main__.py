@@ -1,4 +1,4 @@
-"""The main module for the wav_reader script that handles code entry point.
+"""The main module for the wav_file_util cmdline script that handles code entry point.
 
 """
 

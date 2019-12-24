@@ -1,4 +1,4 @@
-"""Module responsible for generating wave forms and writing to wav files.
+"""Module that contains wave form classes.
 
 """
 

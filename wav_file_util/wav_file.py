@@ -1,4 +1,4 @@
-"""Wav file class is described in this module.
+"""Wav file class is described in this module along with it's meta data class.
 
 """
 

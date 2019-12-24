@@ -1,18 +1,18 @@
 from setuptools import setup
 
 setup(
-    name="wav_reader",
+    name="wav_file_util",
     version='1.0',
     description="Reads wav files and outputs information about them",
     author="Stan Rokita",
     author_email="srok35@gmail.com",
-    packages=["wav_reader"],
+    packages=["wav_file_util"],
     extras_require={
         'dev': ['pylint']
     },
     entry_points={
         'console_scripts': [
-            'wav_reader = wav_reader.__main__:main'
+            'wav_file_util = wav_file_util.__main__:main'
         ]
     }
 )
