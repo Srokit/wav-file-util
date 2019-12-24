@@ -7,6 +7,7 @@ setup(
     author="Stan Rokita",
     author_email="srok35@gmail.com",
     packages=["wav_file_util"],
+    install_requires=['click'],
     extras_require={
         'dev': ['pylint']
     },

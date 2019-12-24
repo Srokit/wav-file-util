@@ -5,6 +5,7 @@
 import math
 
 
+
 class WaveForm:
 
     def __init__(self, frequency):
@@ -42,3 +43,10 @@ class SawtoothWaveForm(WaveForm):
 
     def y_from_x(self, x):
         return x - int(x)
+
+
+wave_forms_by_name = {
+    'square': SquareWaveForm,
+    'sine': SineWaveForm,
+    'sawtooth': SawtoothWaveForm
+}
